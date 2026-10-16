@@ -1,0 +1,58 @@
+[
+  {
+    "id": "diapers-baby",
+    "name": "Pampers for the Poor",
+    "description": "Diapers, wipes, and baby formula for low-income families",
+    "ethAddress": "0x959FFEa9005b63da0d86A75312e22351F568E59B",
+    "btcAddress": "bc1q7wtjrrj8guyq9ju3hd7d7kq43607mu9yms5qm2"
+  },
+  {
+    "id": "single-moms-utilities",
+    "name": "Utility Bill Help for Single Mothers",
+    "description": "Electricity, water, and heating bills for single-mom households",
+    "ethAddress": "0x85E011D62EC85094340Cc35b71378aE0B0dDE875",
+    "btcAddress": "bc1qkjzwzuv4e9snddl4aj4nlz7ksn2s96sc9ndlwp"
+  },
+  {
+    "id": "groceries-families",
+    "name": "Groceries for Families",
+    "description": "Weekly groceries and food bank restocking",
+    "ethAddress": "0xF0484170Ef2Edd1EC1eE5929E6af63C8Afce5e65",
+    "btcAddress": "bc1q7kh39thsnac8ln3tagex8jeau3l4jvnywcx9e9"
+  },
+  {
+    "id": "school-supplies",
+    "name": "School Supplies & Education",
+    "description": "Books, backpacks, laptops, and tuition help for kids",
+    "ethAddress": "0x74CFACc5D0Fe4859A6C24ae6A3eeE0e12b491be3",
+    "btcAddress": "bc1q4ex8ud9dk33p0tvy2a7z74shzz3tmls85nam8u"
+  },
+  {
+    "id": "medical-relief",
+    "name": "Medical Bill Relief",
+    "description": "Prescriptions, clinic visits, and emergency medical costs",
+    "ethAddress": "0x63b4CAB6dfd8Af2E9119699a393CdEcbCb892b11",
+    "btcAddress": "bc1qn3r259znmlnxa4jwgxsm3hreja8fpk2gmz6vwg"
+  },
+  {
+    "id": "shelter-warmth",
+    "name": "Shelter & Warm Beds",
+    "description": "Homeless shelter support, blankets, and warm clothing",
+    "ethAddress": "0x8b8454B9973EA7dd24dbd9afb93fd3439215D8f8",
+    "btcAddress": "bc1qav9erk7axxgmhqw7h4l8aherm08rlj7nquqf23"
+  },
+  {
+    "id": "clean-water",
+    "name": "Clean Water Projects",
+    "description": "Clean drinking water wells and filtration",
+    "ethAddress": "0x7D0D044F3cc5ccc90eF59dfbd0D75c6D37dB1487",
+    "btcAddress": "bc1qrllrwq0d57ljsgytv8s2vr7ffxe6spzt7nq8np"
+  },
+  {
+    "id": "disaster-relief",
+    "name": "Emergency Disaster Relief",
+    "description": "Rapid response for fires, floods, and storms",
+    "ethAddress": "0x18ABdFFb2719bA666C7CFA6E5D9E38a6Fb736e87",
+    "btcAddress": "bc1qwfecfudcuqkvw63avmzcva0pgl9nm9e9a0vkd0"
+  }
+]
