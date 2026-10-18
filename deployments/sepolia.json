@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "router": "0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520",
+  "feeBps": 100,
+  "deployer": "0xc3265B57139399F96489c22C3Da4CF9b5BdfC232",
+  "testTx": "0x884a3f5e44de1be94f0eaf8ac9246351afd75974f9957779500311ec2d4cd043",
+  "deployedAt": "2026-10-18T01:59:02.728Z"
+}
