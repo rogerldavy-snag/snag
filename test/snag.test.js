@@ -105,12 +105,62 @@ describe("SnagRouterMulti", function () {
     await expect(router.connect(alice).setFeeBps(50)).to.be.revertedWith("Snag: not owner");
   });
 
-  it("updating a charity wallet replaces it", async function () {
+  it("addCharity reverts when the id already has a wallet", async function () {
     const { router, alice, bob } = await deployMulti();
     await router.addCharity(CHARITY_ID, alice.address);
-    await router.addCharity(CHARITY_ID, bob.address);
+    await expect(
+      router.addCharity(CHARITY_ID, bob.address)
+    ).to.be.revertedWith("Snag: charity exists");
+  });
+
+  it("charity wallet updates are two step with a delay", async function () {
+    const { router, alice, bob } = await deployMulti();
     const cid = ethers.keccak256(ethers.toUtf8Bytes(CHARITY_ID));
+    await router.addCharity(CHARITY_ID, alice.address);
+    await router.proposeCharityWalletUpdate(CHARITY_ID, bob.address);
+    expect(await router.charityWallets(cid)).to.equal(alice.address);
+    await expect(
+      router.confirmCharityWalletUpdate(CHARITY_ID)
+    ).to.be.revertedWith("Snag: update not ready");
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+    await expect(router.confirmCharityWalletUpdate(CHARITY_ID))
+      .to.emit(router, "CharityWalletUpdated")
+      .withArgs(cid, alice.address, bob.address);
     expect(await router.charityWallets(cid)).to.equal(bob.address);
+  });
+
+  it("ownership can be transferred and renounced", async function () {
+    const { router, alice, charity } = await deployMulti();
+    await router.transferOwnership(alice.address);
+    expect(await router.owner()).to.equal(alice.address);
+    await expect(router.addCharity(CHARITY_ID, charity.address)).to.be.revertedWith("Snag: not owner");
+    await router.connect(alice).renounceOwnership();
+    expect(await router.owner()).to.equal(ethers.ZeroAddress);
+  });
+
+  it("reverts when destination is the contract itself", async function () {
+    const { router, alice, charity } = await deployMulti();
+    await router.addCharity(CHARITY_ID, charity.address);
+    await expect(
+      router.connect(alice).snagAndSend(CHARITY_ID, await router.getAddress(), { value: 1000 })
+    ).to.be.revertedWith("Snag: self destination");
+  });
+
+  it("owner can recover stuck ETH; others cannot", async function () {
+    const { router, owner, alice } = await deployMulti();
+    const stuck = ethers.parseEther("0.5");
+    await ethers.provider.send("hardhat_setBalance", [
+      await router.getAddress(),
+      "0x" + stuck.toString(16),
+    ]);
+    const before = await ethers.provider.getBalance(owner.address);
+    const tx = await router.recoverETH(stuck);
+    const receipt = await tx.wait();
+    const gas = receipt.gasUsed * receipt.gasPrice;
+    expect(await ethers.provider.getBalance(await router.getAddress())).to.equal(0n);
+    expect(await ethers.provider.getBalance(owner.address)).to.equal(before + stuck - gas);
+    await expect(router.connect(alice).recoverETH(1n)).to.be.revertedWith("Snag: not owner");
   });
 });
 
@@ -162,13 +212,29 @@ describe("SnagRouter", function () {
     expect(await token.balanceOf(await router.getAddress())).to.equal(0n);
   });
 
-  it("owner can update charity wallet and fee; others cannot", async function () {
+  it("charity wallet changes are two step with a delay; fee is owner only", async function () {
     const { router, alice, bob } = await deploySingle();
-    await router.setCharityWallet(bob.address);
+    await router.proposeCharityWallet(bob.address);
+    expect(await router.pendingCharityWallet()).to.equal(bob.address);
+    expect(await router.charityWallet()).to.not.equal(bob.address);
+    await expect(router.confirmCharityWallet()).to.be.revertedWith("Snag: change not ready");
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+    await router.confirmCharityWallet();
     expect(await router.charityWallet()).to.equal(bob.address);
-    await expect(router.setCharityWallet(ethers.ZeroAddress)).to.be.revertedWith("Snag: zero charity");
+    await expect(router.proposeCharityWallet(ethers.ZeroAddress)).to.be.revertedWith("Snag: zero charity");
     await expect(router.connect(alice).setFeeBps(50)).to.be.revertedWith("Snag: not owner");
-    await expect(router.connect(alice).setCharityWallet(alice.address)).to.be.revertedWith("Snag: not owner");
+    await expect(router.connect(alice).proposeCharityWallet(alice.address)).to.be.revertedWith("Snag: not owner");
+  });
+
+  it("ownership transfers; self sends revert", async function () {
+    const { router, alice } = await deploySingle();
+    await expect(
+      router.connect(alice).snagAndSend(await router.getAddress(), { value: 1000 })
+    ).to.be.revertedWith("Snag: self destination");
+    await router.transferOwnership(alice.address);
+    expect(await router.owner()).to.equal(alice.address);
+    await expect(router.setFeeBps(50)).to.be.revertedWith("Snag: not owner");
   });
 
   it("owner can recover stuck ERC20", async function () {

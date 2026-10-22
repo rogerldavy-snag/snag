@@ -1,18 +1,28 @@
 # Snag — Audit Preparation Package
 
-> Status: PRE-AUDIT. Code is feature-frozen for audit as of the commit noted below.
+> Status: PRE-AUDIT. Code is feature-frozen for audit as of 2026-10-22 (refreeze after hardening, below).
 > No changes to `contracts/` until the audit completes.
+
+## Refreeze note (2026-10-22)
+
+The Oct 17 freeze was lifted once, on Divine's approval, to apply the three cheap hardening fixes from the FYEO AI scan, as Cyfrin (Namd Teotrakool) recommended on the Oct 22 intro call so the public report publishes clean:
+- **A. Owner rotation:** `transferOwnership` + `renounceOwnership` on both contracts.
+- **B. Charity wallet changes are now two step:** SnagRouter `proposeCharityWallet` / `confirmCharityWallet` with a 1 day delay; `addCharity` on Multi reverts if the id already has a wallet, and wallet updates go through `proposeCharityWalletUpdate` / `confirmCharityWalletUpdate` with a 1 day delay.
+- **C. Self send guard + ETH recovery:** both send functions revert when the destination is the contract itself; `recoverETH` added to SnagRouterMulti.
+- Fixes E and F from the scan were deliberately NOT applied (they change send path semantics; auditor steer first). D, G, H documented only.
+
+Test suite is now 23 tests, all passing. The Sepolia deployment below predates this refreeze and still runs the Oct 17 code.
 
 ## Scope (in scope)
 
 | Contract | Lines | Purpose |
 |---|---|---|
-| `contracts/SnagRouterMulti.sol` | 66 | Multi-cause router: `snagAndSend(charityId, destination)` splits msg.value 1% → charity, 99% → destination |
-| `contracts/SnagRouter.sol` | 92 | Single-cause router + ERC20 variant + `recoverERC20` |
-| **Total** | **158** | |
+| `contracts/SnagRouterMulti.sol` | 126 | Multi-cause router: `snagAndSend(charityId, destination)` splits msg.value 1% → charity, 99% → destination |
+| `contracts/SnagRouter.sol` | 133 | Single-cause router + ERC20 variant + `recoverERC20` |
+| **Total** | **259** | |
 
 - Solidity `^0.8.20`, compiled with 0.8.37, optimizer enabled (200 runs).
-- Test suite: `test/snag.test.js` — 18 tests, all passing (`npx hardhat test`).
+- Test suite: `test/snag.test.js` — 23 tests, all passing (`npx hardhat test`).
 - Reference deployment (Sepolia): `0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520`
   ([Etherscan](https://sepolia.etherscan.io/address/0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520)) — all 8 cause wallets registered, end-to-end test snag confirmed (block 11937972).
 
@@ -26,10 +36,10 @@
 
 1. **Conservation:** `snagAmount + sendAmount == msg.value` on every `snagAndSend` (no ETH retained; router balance is always 0 after a call).
 2. **Fee math:** `snagAmount = msg.value * feeBps / 10000`, rounded down; `feeBps <= 1000` (10%) enforced in constructor and `setFeeBps`.
-3. **Access control:** only `owner` can call `addCharity`, `setCharityWallet`, `setFeeBps`, `recoverERC20`.
-4. **No zero-address sinks:** charity wallet and destination must be non-zero (checked on write and per-send).
-5. **Charity registry integrity:** `snagAndSend` reverts on unregistered charity id (`Snag: unknown charity`); re-registering an id replaces the wallet and emits `CharityAdded` again.
-6. **No custody:** the router never holds user funds beyond the atomic call; `recoverERC20` only touches ERC20 (not ETH) and only pays out to `owner`.
+3. **Access control:** only `owner` can call `addCharity`, the propose/confirm wallet change functions, `setFeeBps`, `recoverERC20`, `recoverETH`, `transferOwnership`, `renounceOwnership`.
+4. **No zero-address sinks:** charity wallet and destination must be non-zero (checked on write and per-send); sends to the contract itself revert (`Snag: self destination`).
+5. **Charity registry integrity:** `snagAndSend` reverts on unregistered charity id (`Snag: unknown charity`); `addCharity` reverts if the id already has a wallet (`Snag: charity exists`) — no silent overwrites. Wallet changes take effect only after a 1 day delay via propose then confirm.
+6. **No custody:** the router never holds user funds beyond the atomic call; `recoverERC20` (SnagRouter) and `recoverETH` (SnagRouterMulti) are owner-only escape hatches that pay out only to `owner`.
 
 ## Known considerations (disclosed, not hidden)
 
