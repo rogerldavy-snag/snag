@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snag — Every send gives a little</title>
+<meta name="description" content="Snag is open-source infrastructure that routes 1% of every opt-in ETH or BTC send to a charity wallet the sender chooses. No new token, no platform cut.">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#11161d; --panel2:#151c25; --line:#223041;
+    --text:#e8eef5; --muted:#9fb0c3; --accent:#34d399; --accent2:#fbbf24;
+    --radius:16px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; line-height:1.6}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 24px}
+  header{padding:28px 0; display:flex; justify-content:space-between; align-items:center}
+  .logo{font-size:24px; font-weight:800; letter-spacing:-.5px}
+  .logo span{color:var(--accent)}
+  nav a{color:var(--muted); text-decoration:none; margin-left:22px; font-size:15px}
+  nav a:hover{color:var(--text)}
+  .hero{padding:70px 0 50px; text-align:center}
+  .pill{display:inline-block; background:var(--panel2); border:1px solid var(--line); color:var(--accent); border-radius:999px; padding:6px 16px; font-size:13px; font-weight:600; margin-bottom:22px}
+  h1{font-size:clamp(36px,6vw,60px); font-weight:800; letter-spacing:-1.5px; line-height:1.12; margin-bottom:18px}
+  h1 em{font-style:normal; color:var(--accent)}
+  .sub{color:var(--muted); font-size:19px; max-width:640px; margin:0 auto 34px}
+  .cta{display:flex; gap:14px; justify-content:center; flex-wrap:wrap}
+  .btn{display:inline-block; padding:14px 28px; border-radius:12px; font-weight:700; font-size:16px; text-decoration:none; transition:transform .12s}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-primary{background:var(--accent); color:#06231a}
+  .btn-ghost{background:var(--panel2); color:var(--text); border:1px solid var(--line)}
+  .demo{margin:48px auto 0; max-width:760px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:26px; text-align:left}
+  .demo .row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px dashed var(--line)}
+  .demo .row:last-child{border-bottom:none}
+  .demo .lbl{color:var(--muted); font-size:14px}
+  .demo .val{font-family:ui-monospace,Menlo,monospace; font-size:14px}
+  .demo .val.green{color:var(--accent); font-weight:700}
+  section{padding:64px 0}
+  h2{font-size:30px; font-weight:800; letter-spacing:-.8px; margin-bottom:10px; text-align:center}
+  .kicker{text-align:center; color:var(--muted); max-width:620px; margin:0 auto 40px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:26px}
+  .card h3{font-size:18px; margin-bottom:8px}
+  .card p{color:var(--muted); font-size:15px}
+  .badge{display:inline-block; font-size:12px; font-weight:700; background:#0f2a1f; color:var(--accent); border:1px solid #1e4d37; border-radius:999px; padding:3px 10px; margin-bottom:12px}
+  .cause-emoji{font-size:26px; margin-bottom:10px}
+  .steps{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px; counter-reset:step}
+  .step{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:26px; position:relative}
+  .step::before{counter-increment:step; content:counter(step); display:inline-flex; width:34px; height:34px; border-radius:50%; background:var(--accent); color:#06231a; font-weight:800; align-items:center; justify-content:center; margin-bottom:14px}
+  .step h3{font-size:17px; margin-bottom:8px}
+  .step p{color:var(--muted); font-size:15px}
+  .faq{max-width:720px; margin:0 auto}
+  .faq details{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin-bottom:12px}
+  .faq summary{font-weight:700; cursor:pointer; font-size:16px}
+  .faq p{color:var(--muted); margin-top:10px; font-size:15px}
+  .faq code{background:var(--panel2); padding:2px 8px; border-radius:6px; font-size:13px}
+  .status{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:30px; max-width:720px; margin:0 auto}
+  .status ul{list-style:none; margin-top:14px}
+  .status li{padding:8px 0; color:var(--muted); font-size:15px}
+  .status li b{color:var(--text)}
+  .done{color:var(--accent); font-weight:700; margin-right:8px}
+  footer{border-top:1px solid var(--line); padding:34px 0 60px; color:var(--muted); font-size:14px; text-align:center}
+  footer a{color:var(--accent); text-decoration:none}
+  @media(max-width:640px){ .cta .btn{width:100%; text-align:center} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo">Snag<span>.</span></div>
+  <nav>
+    <a href="#how">How it works</a>
+    <a href="#causes">Causes</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://github.com/rogerldavy-snag/snag" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <div class="pill">Open source · MIT · No new token</div>
+  <h1>Every send gives <em>a little.</em><br>You pick the cause.</h1>
+  <p class="sub">Snag is open-source infrastructure that routes <strong>1%</strong> of every opt-in ETH or BTC send to a charity wallet the sender chooses. No separate donation step. No platform cut.</p>
+  <div class="cta">
+    <a class="btn btn-primary" href="https://muse.ai/s/send-with-snag-nxk6txg1sxmsxzf" target="_blank" rel="noopener">Try the live demo</a>
+    <a class="btn btn-ghost" href="https://github.com/rogerldavy-snag/snag" target="_blank" rel="noopener">Read the code</a>
+  </div>
+  <div class="demo">
+    <div class="row"><span class="lbl">You send</span><span class="val">1.0000 ETH</span></div>
+    <div class="row"><span class="lbl">Destination receives</span><span class="val">0.9900 ETH</span></div>
+    <div class="row"><span class="lbl">Charity wallet receives <span style="color:var(--muted)">(your choice)</span></span><span class="val green">0.0100 ETH → Shelter &amp; Warm Beds</span></div>
+    <div class="row"><span class="lbl">Platform fee</span><span class="val">$0.00 — there is none</span></div>
+  </div>
+</div>
+
+<section id="how">
+  <h2>How it works</h2>
+  <p class="kicker">The send <strong>is</strong> the donation. Giving happens inside payments people already make.</p>
+  <div class="steps">
+    <div class="step">
+      <h3>Opt in on send</h3>
+      <p>You choose to route a payment through Snag — nothing is ever taken from a wallet that doesn't choose it. Strictly opt-in, fully non-custodial.</p>
+    </div>
+    <div class="step">
+      <h3>Pick a cause</h3>
+      <p>Choose one of 8 specific cause wallets — diapers, utility bills, groceries, school supplies, medical relief, shelter, clean water, disaster relief.</p>
+    </div>
+    <div class="step">
+      <h3>1% routes automatically</h3>
+      <p>ETH splits in the SnagRouter contract (99/1); BTC adds a charity output your own wallet signs. Fee is capped at 10% in-contract, set to 1%.</p>
+    </div>
+    <div class="step">
+      <h3>Verified on-chain</h3>
+      <p>Every snag is a normal on-chain transfer to a public wallet — 100% of the 1% reaches the cause, auditable by anyone, forever.</p>
+    </div>
+  </div>
+</section>
+
+<section id="causes">
+  <h2>8 specific causes, not a black box</h2>
+  <p class="kicker">Specificity moves people to give. Each cause has its own public ETH + BTC wallet.</p>
+  <div class="grid">
+    <div class="card"><div class="cause-emoji">🍼</div><h3>Pampers for the Poor</h3><p>Diapers, wipes, and baby formula for low-income families.</p></div>
+    <div class="card"><div class="cause-emoji">💡</div><h3>Utility Bill Help for Single Mothers</h3><p>Electricity, water, and heating bills for single-mom households.</p></div>
+    <div class="card"><div class="cause-emoji">🛒</div><h3>Groceries for Families</h3><p>Weekly groceries and food bank restocking.</p></div>
+    <div class="card"><div class="cause-emoji">🎒</div><h3>School Supplies &amp; Education</h3><p>Books, backpacks, laptops, and tuition help for kids.</p></div>
+    <div class="card"><div class="cause-emoji">🏥</div><h3>Medical Bill Relief</h3><p>Prescriptions, clinic visits, and emergency medical costs.</p></div>
+    <div class="card"><div class="cause-emoji">🛏️</div><h3>Shelter &amp; Warm Beds</h3><p>Homeless shelter support, blankets, and warm clothing.</p></div>
+    <div class="card"><div class="cause-emoji">💧</div><h3>Clean Water Projects</h3><p>Clean drinking water wells and filtration.</p></div>
+    <div class="card"><div class="cause-emoji">🚨</div><h3>Emergency Disaster Relief</h3><p>Rapid response for fires, floods, and storms.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Why not the alternatives?</h2>
+  <p class="kicker">Existing options all make giving harder than it needs to be.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="badge">CHARITY TOKENS</div>
+      <h3>Giving hostage to speculation</h3>
+      <p>Force you to buy and hold their proprietary coin before you can give. If the token dies, so does the giving. Snag works on the ETH and BTC you already hold.</p>
+    </div>
+    <div class="card">
+      <div class="badge">DONATION PLATFORMS</div>
+      <h3>A second chore + a ~2.5% cut</h3>
+      <p>Separate apps, second payments, platform fees. They're built for nonprofits receiving funds — not for embedding giving into payments people already make.</p>
+    </div>
+    <div class="card">
+      <div class="badge">SNAG</div>
+      <h3>The send IS the donation</h3>
+      <p>No new token. No separate step. No platform cut — 100% of the 1% reaches the cause wallet. Opt-in, non-custodial, verifiable on-chain.</p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <h2>Questions</h2>
+  <p class="kicker">&nbsp;</p>
+  <div class="faq">
+    <details open>
+      <summary>Is this live? Can I snag right now?</summary>
+      <p>Not yet on mainnet. Contracts are written, open sourced (MIT), and public on GitHub, and the routers are live on the <a href="https://sepolia.etherscan.io/address/0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520" target="_blank" rel="noopener" style="color:var(--accent)">Sepolia testnet</a>, where an end to end test snag already confirmed the 99/1 split. The audit is the gating item before mainnet. The <a href="https://muse.ai/s/send-with-snag-nxk6txg1sxmsxzf" target="_blank" rel="noopener" style="color:var(--accent)">interactive demo</a> shows exactly how it will feel.</p>
+    </details>
+    <details>
+      <summary>How does the ETH side work?</summary>
+      <p>Send through the <code>SnagRouterMulti</code> contract with a <code>charityId</code>. The contract splits <code>msg.value</code>: 99% to your destination, 1% to the cause wallet you picked. Fee math is capped at 10% in-contract and currently set to 1%.</p>
+    </details>
+    <details>
+      <summary>How does the BTC side work?</summary>
+      <p>No contract needed — Snag's tooling builds a transaction with an extra charity output that your own wallet signs. Your keys never leave your wallet.</p>
+    </details>
+    <details>
+      <summary>Who runs the charity wallets?</summary>
+      <p>They're single-purpose addresses with keys held offline by the project creator, Divine, until named charity partners take custody. Every wallet and balance is public.</p>
+    </details>
+    <details>
+      <summary>Who built this?</summary>
+      <p>Snag was created by <a href="https://x.com/DivineDavy" target="_blank" rel="noopener" style="color:var(--accent)">Divine</a> (@DivineDavy), an independent builder. Code, whitepaper, and docs are public and MIT-licensed.</p>
+    </details>
+  </div>
+</section>
+
+<section>
+  <h2>Where things stand</h2>
+  <p class="kicker">&nbsp;</p>
+  <div class="status">
+    <ul>
+      <li><span class="done">✓</span> <b>Built:</b> two Solidity routers, Bitcoin PSBT tooling, interactive demo, whitepaper</li>
+      <li><span class="done">✓</span> <b>Open:</b> all code public and MIT-licensed on <a href="https://github.com/rogerldavy-snag/snag" target="_blank" rel="noopener" style="color:var(--accent)">GitHub</a></li>
+      <li><span class="done">✓</span> <b>Launched:</b> public announcement on Reddit (r/ethereum) and X — October 2026</li>
+      <li><span class="done">✓</span> <b>Fund the build:</b> Snag is live on <a href="https://giveth.io/project/snag-frictionless-crypto-giving" target="_blank" rel="noopener" style="color:var(--accent)">Giveth</a> — donations go to the security audit + mainnet launch</li>
+      <li><span class="done">✓</span> <b>Testnet:</b> routers live on <a href="https://sepolia.etherscan.io/address/0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520" target="_blank" rel="noopener" style="color:var(--accent)">Sepolia</a> — first end to end snag verified on chain Oct 17</li>
+      <li>○ <b>Next:</b> third-party security audit (quote requested), then mainnet</li>
+      <li>○ <b>Then:</b> named charity partners, wallet-integration SDK, public transparency dashboard</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <p>Snag — frictionless crypto giving. Built by <a href="https://x.com/DivineDavy" target="_blank" rel="noopener">Divine</a>. Open source under MIT.</p>
+  <p style="margin-top:8px"><a href="https://github.com/rogerldavy-snag/snag" target="_blank" rel="noopener">GitHub</a> · <a href="https://muse.ai/s/send-with-snag-nxk6txg1sxmsxzf" target="_blank" rel="noopener">Demo</a> · <a href="https://giveth.io/project/snag-frictionless-crypto-giving" target="_blank" rel="noopener">Giveth</a> · <a href="https://t.me/snagcares" target="_blank" rel="noopener">Telegram</a> · <a href="https://x.com/DivineDavy" target="_blank" rel="noopener">@DivineDavy</a></p>
+</footer>
+
+</div>
+</body>
+</html>
