@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title SnagRouter - opt-in charity fee router for ETH + ERC20
+/// @title SnagRouter - opt-in charity add-on router for ETH + ERC20
 /// @notice Users opt in by sending through this contract instead of a direct transfer.
-/// A small fee (in basis points) is snagged and sent to a charity wallet.
+/// The add-on is a small fee (in basis points) paid by the sender ON TOP of
+/// the recipient's full intended amount: the recipient gets exactly the
+/// amount stated, the cause wallet gets feeBps of that amount on top.
 /// @dev Fee is in basis points: 100 = 1%, 50 = 0.5%. Max 1000 (10%) to prevent accidents.
+/// @dev Add-on model, approved Oct 31 2026. The old split model
+/// (recipient got the amount minus 1%) is preserved in the local tag
+/// legacy/split-oct22-refreeze and must not be reintroduced here.
 contract SnagRouter {
     address public owner;
     address payable public charityWallet;
@@ -18,6 +23,11 @@ contract SnagRouter {
     address payable public pendingCharityWallet;
     uint256 public charityChangeEta;
 
+    // @dev In the Snagged event, `amount` is the intended recipient
+    // amount (what the destination actually receives). It is NOT the
+    // total the sender paid; the sender paid amount + snagAmount.
+    // This meaning changed with the add-on rewrite (Oct 31 2026);
+    // the old split version emitted the total pulled as `amount`.
     event Snagged(address indexed from, address indexed destination, uint256 amount, uint256 snagAmount, address indexed charity);
     event CharityWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event CharityWalletProposed(address indexed oldWallet, address indexed newWallet, uint256 eta);
@@ -83,40 +93,47 @@ contract SnagRouter {
         emit FeeUpdated(old, _feeBps);
     }
 
-    /// @notice Send ETH, snagging a small % for charity.
-    /// @param destination Where the main amount goes.
-    function snagAndSend(address payable destination) external payable {
-        require(msg.value > 0, "Snag: no value");
+    /// @notice Send ETH, adding a small % for charity on top, paid by the sender.
+    /// @param destination Where the full intended amount goes.
+    /// @param amount The exact amount the destination must receive.
+    /// @dev The sender must pay exactly amount + snagAmount, where
+    /// snagAmount = amount * feeBps / 10000 (dust rounds down).
+    /// A short or over payment reverts, so the recipient never gets
+    /// a shortfall and no leftover ETH stays in the contract.
+    function snagAndSend(address payable destination, uint256 amount) external payable {
+        require(amount > 0, "Snag: no amount");
         require(destination != address(0), "Snag: zero destination");
         require(destination != address(this), "Snag: self destination");
 
-        uint256 snagAmount = (msg.value * feeBps) / BPS_DENOMINATOR;
-        uint256 sendAmount = msg.value - snagAmount;
+        uint256 snagAmount = (amount * feeBps) / BPS_DENOMINATOR;
+        require(msg.value == amount + snagAmount, "Snag: wrong value");
 
         (bool s1, ) = charityWallet.call{value: snagAmount}("");
         require(s1, "Snag: charity transfer failed");
 
-        (bool s2, ) = destination.call{value: sendAmount}("");
+        (bool s2, ) = destination.call{value: amount}("");
         require(s2, "Snag: destination transfer failed");
 
-        emit Snagged(msg.sender, destination, msg.value, snagAmount, charityWallet);
+        emit Snagged(msg.sender, destination, amount, snagAmount, charityWallet);
     }
 
-    /// @notice Send ERC20 tokens, snagging a small % for charity.
-    /// @dev User must approve this contract for `amount` first.
+    /// @notice Send ERC20 tokens, adding a small % for charity on top, paid by the sender.
+    /// @dev User must approve this contract for `amount + snagAmount` first,
+    /// where snagAmount = amount * feeBps / 10000 (dust rounds down).
+    /// `amount` is the exact amount the destination receives; the charity
+    /// wallet receives snagAmount on top of it.
     function snagAndSendERC20(address token, address destination, uint256 amount) external {
         require(amount > 0, "Snag: no amount");
         require(destination != address(0), "Snag: zero destination");
         require(destination != address(this), "Snag: self destination");
 
-        IERC20 erc20 = IERC20(token);
-        require(erc20.transferFrom(msg.sender, address(this), amount), "Snag: pull failed");
-
         uint256 snagAmount = (amount * feeBps) / BPS_DENOMINATOR;
-        uint256 sendAmount = amount - snagAmount;
+
+        IERC20 erc20 = IERC20(token);
+        require(erc20.transferFrom(msg.sender, address(this), amount + snagAmount), "Snag: pull failed");
 
         require(erc20.transfer(charityWallet, snagAmount), "Snag: charity token transfer failed");
-        require(erc20.transfer(destination, sendAmount), "Snag: destination token transfer failed");
+        require(erc20.transfer(destination, amount), "Snag: destination token transfer failed");
 
         emit Snagged(msg.sender, destination, amount, snagAmount, charityWallet);
     }

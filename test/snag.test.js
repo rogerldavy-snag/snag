@@ -4,6 +4,12 @@ const { ethers } = require("hardhat");
 const FEE_BPS = 100n; // 1%
 const CHARITY_ID = "diapers-baby";
 
+// Add-on model, approved Oct 31 2026: the recipient gets exactly the
+// stated amount, and the sender pays amount + 1% on top. A short or
+// over payment reverts. The old split model (recipient got
+// msg.value minus 1%) is preserved in the local tag
+// legacy/split-oct22-refreeze and is NOT tested here.
+
 async function deployMulti(fee = FEE_BPS) {
   const [owner, alice, bob, charity] = await ethers.getSigners();
   const Factory = await ethers.getContractFactory("SnagRouterMulti");
@@ -48,7 +54,7 @@ describe("SnagRouterMulti", function () {
     ).to.be.revertedWith("Snag: zero wallet");
   });
 
-  it("splits 1% to charity and 99% to destination", async function () {
+  it("adds 1% on top: recipient gets the exact amount, charity gets 1%", async function () {
     const { router, alice, bob, charity } = await deployMulti();
     await router.addCharity(CHARITY_ID, charity.address);
     const amount = ethers.parseEther("1");
@@ -57,43 +63,79 @@ describe("SnagRouterMulti", function () {
     const charityBefore = await ethers.provider.getBalance(charity.address);
     const bobBefore = await ethers.provider.getBalance(bob.address);
 
-    await expect(router.connect(alice).snagAndSend(CHARITY_ID, bob.address, { value: amount }))
+    await expect(router.connect(alice).snagAndSend(CHARITY_ID, bob.address, amount, { value: amount + expectedSnag }))
       .to.emit(router, "Snagged");
 
     expect(await ethers.provider.getBalance(charity.address)).to.equal(charityBefore + expectedSnag);
-    expect(await ethers.provider.getBalance(bob.address)).to.equal(bobBefore + (amount - expectedSnag));
+    expect(await ethers.provider.getBalance(bob.address)).to.equal(bobBefore + amount);
     expect(await ethers.provider.getBalance(await router.getAddress())).to.equal(0n);
+  });
+
+  it("emits Snagged with amount as the intended recipient amount", async function () {
+    const { router, alice, bob, charity } = await deployMulti();
+    await router.addCharity(CHARITY_ID, charity.address);
+    const cid = ethers.keccak256(ethers.toUtf8Bytes(CHARITY_ID));
+    const amount = ethers.parseEther("1");
+    const expectedSnag = amount / 100n;
+    await expect(router.connect(alice).snagAndSend(CHARITY_ID, bob.address, amount, { value: amount + expectedSnag }))
+      .to.emit(router, "Snagged")
+      .withArgs(alice.address, bob.address, amount, expectedSnag, cid, charity.address);
+  });
+
+  it("reverts on a short payment", async function () {
+    const { router, alice, bob, charity } = await deployMulti();
+    await router.addCharity(CHARITY_ID, charity.address);
+    const amount = ethers.parseEther("1");
+    const expectedSnag = amount / 100n;
+    // Pays the intended amount only, missing the 1% add-on.
+    await expect(
+      router.connect(alice).snagAndSend(CHARITY_ID, bob.address, amount, { value: amount })
+    ).to.be.revertedWith("Snag: wrong value");
+    // Pays one wei short of the exact total.
+    await expect(
+      router.connect(alice).snagAndSend(CHARITY_ID, bob.address, amount, { value: amount + expectedSnag - 1n })
+    ).to.be.revertedWith("Snag: wrong value");
+  });
+
+  it("reverts on an overpayment", async function () {
+    const { router, alice, bob, charity } = await deployMulti();
+    await router.addCharity(CHARITY_ID, charity.address);
+    const amount = ethers.parseEther("1");
+    const expectedSnag = amount / 100n;
+    await expect(
+      router.connect(alice).snagAndSend(CHARITY_ID, bob.address, amount, { value: amount + expectedSnag + 1n })
+    ).to.be.revertedWith("Snag: wrong value");
   });
 
   it("reverts on unknown charity id", async function () {
     const { router, alice, bob } = await deployMulti();
     await expect(
-      router.connect(alice).snagAndSend("nope", bob.address, { value: 1000 })
+      router.connect(alice).snagAndSend("nope", bob.address, 1000, { value: 1010 })
     ).to.be.revertedWith("Snag: unknown charity");
   });
 
-  it("reverts on zero value", async function () {
+  it("reverts on zero amount", async function () {
     const { router, alice, bob, charity } = await deployMulti();
     await router.addCharity(CHARITY_ID, charity.address);
     await expect(
-      router.connect(alice).snagAndSend(CHARITY_ID, bob.address, { value: 0 })
-    ).to.be.revertedWith("Snag: no value");
+      router.connect(alice).snagAndSend(CHARITY_ID, bob.address, 0, { value: 0 })
+    ).to.be.revertedWith("Snag: no amount");
   });
 
   it("reverts on zero destination", async function () {
     const { router, alice, charity } = await deployMulti();
     await router.addCharity(CHARITY_ID, charity.address);
     await expect(
-      router.connect(alice).snagAndSend(CHARITY_ID, ethers.ZeroAddress, { value: 1000 })
+      router.connect(alice).snagAndSend(CHARITY_ID, ethers.ZeroAddress, 1000, { value: 1010 })
     ).to.be.revertedWith("Snag: zero destination");
   });
 
   it("rounds dust snag down to zero without reverting", async function () {
     const { router, alice, bob, charity } = await deployMulti();
     await router.addCharity(CHARITY_ID, charity.address);
-    // 50 wei * 1% = 0.5 -> 0
+    // 50 wei * 1% = 0.5 -> 0, so the sender pays exactly 50 wei.
     const bobBefore = await ethers.provider.getBalance(bob.address);
-    await router.connect(alice).snagAndSend(CHARITY_ID, bob.address, { value: 50 });
+    await router.connect(alice).snagAndSend(CHARITY_ID, bob.address, 50, { value: 50 });
     expect(await ethers.provider.getBalance(bob.address)).to.equal(bobBefore + 50n);
   });
 
@@ -143,7 +185,7 @@ describe("SnagRouterMulti", function () {
     const { router, alice, charity } = await deployMulti();
     await router.addCharity(CHARITY_ID, charity.address);
     await expect(
-      router.connect(alice).snagAndSend(CHARITY_ID, await router.getAddress(), { value: 1000 })
+      router.connect(alice).snagAndSend(CHARITY_ID, await router.getAddress(), 1000, { value: 1010 })
     ).to.be.revertedWith("Snag: self destination");
   });
 
@@ -190,26 +232,63 @@ describe("SnagRouter", function () {
     await expect(Factory.deploy(charity.address, 1001)).to.be.revertedWith("Snag: fee too high");
   });
 
-  it("splits ETH 1%/99% and emits Snagged", async function () {
+  it("adds ETH 1% on top and emits Snagged", async function () {
     const { router, alice, bob, charity } = await deploySingle();
     const amount = ethers.parseEther("2");
+    const expectedSnag = amount / 100n;
     const charityBefore = await ethers.provider.getBalance(charity.address);
     const bobBefore = await ethers.provider.getBalance(bob.address);
-    await expect(router.connect(alice).snagAndSend(bob.address, { value: amount }))
+    await expect(router.connect(alice).snagAndSend(bob.address, amount, { value: amount + expectedSnag }))
       .to.emit(router, "Snagged");
-    expect(await ethers.provider.getBalance(charity.address)).to.equal(charityBefore + amount / 100n);
-    expect(await ethers.provider.getBalance(bob.address)).to.equal(bobBefore + (amount - amount / 100n));
+    expect(await ethers.provider.getBalance(charity.address)).to.equal(charityBefore + expectedSnag);
+    expect(await ethers.provider.getBalance(bob.address)).to.equal(bobBefore + amount);
+    expect(await ethers.provider.getBalance(await router.getAddress())).to.equal(0n);
   });
 
-  it("splits ERC20 1%/99% after approval", async function () {
+  it("reverts on a short ETH payment", async function () {
+    const { router, alice, bob } = await deploySingle();
+    const amount = ethers.parseEther("2");
+    await expect(
+      router.connect(alice).snagAndSend(bob.address, amount, { value: amount })
+    ).to.be.revertedWith("Snag: wrong value");
+  });
+
+  it("reverts on an overpaid ETH payment", async function () {
+    const { router, alice, bob } = await deploySingle();
+    const amount = ethers.parseEther("2");
+    const expectedSnag = amount / 100n;
+    await expect(
+      router.connect(alice).snagAndSend(bob.address, amount, { value: amount + expectedSnag + 1n })
+    ).to.be.revertedWith("Snag: wrong value");
+  });
+
+  it("reverts on zero ETH amount", async function () {
+    const { router, alice, bob } = await deploySingle();
+    await expect(
+      router.connect(alice).snagAndSend(bob.address, 0, { value: 0 })
+    ).to.be.revertedWith("Snag: no amount");
+  });
+
+  it("adds ERC20 1% on top after approval for amount plus snag", async function () {
     const { router, token, alice, bob, charity } = await deploySingle();
     const amount = ethers.parseEther("10");
-    await token.mint(alice.address, amount);
-    await token.connect(alice).approve(await router.getAddress(), amount);
+    const expectedSnag = amount / 100n;
+    await token.mint(alice.address, amount + expectedSnag);
+    await token.connect(alice).approve(await router.getAddress(), amount + expectedSnag);
     await router.connect(alice).snagAndSendERC20(await token.getAddress(), bob.address, amount);
-    expect(await token.balanceOf(charity.address)).to.equal(amount / 100n);
-    expect(await token.balanceOf(bob.address)).to.equal(amount - amount / 100n);
+    expect(await token.balanceOf(charity.address)).to.equal(expectedSnag);
+    expect(await token.balanceOf(bob.address)).to.equal(amount);
     expect(await token.balanceOf(await router.getAddress())).to.equal(0n);
+  });
+
+  it("reverts ERC20 when approval covers only the amount, not the add-on", async function () {
+    const { router, token, alice, bob } = await deploySingle();
+    const amount = ethers.parseEther("10");
+    await token.mint(alice.address, amount + amount / 100n);
+    await token.connect(alice).approve(await router.getAddress(), amount);
+    await expect(
+      router.connect(alice).snagAndSendERC20(await token.getAddress(), bob.address, amount)
+    ).to.be.revertedWith("no allowance");
   });
 
   it("charity wallet changes are two step with a delay; fee is owner only", async function () {
@@ -230,7 +309,7 @@ describe("SnagRouter", function () {
   it("ownership transfers; self sends revert", async function () {
     const { router, alice } = await deploySingle();
     await expect(
-      router.connect(alice).snagAndSend(await router.getAddress(), { value: 1000 })
+      router.connect(alice).snagAndSend(await router.getAddress(), 1000, { value: 1010 })
     ).to.be.revertedWith("Snag: self destination");
     await router.transferOwnership(alice.address);
     expect(await router.owner()).to.equal(alice.address);

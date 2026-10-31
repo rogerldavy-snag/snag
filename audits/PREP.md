@@ -1,7 +1,11 @@
 # Snag — Audit Preparation Package
 
-> Status: PRE-AUDIT. Code is feature-frozen for audit as of 2026-10-22 (refreeze after hardening, below).
+> Status: PRE-AUDIT. Code is feature-frozen for audit as of 2026-10-31 (add-on model, below).
 > No changes to `contracts/` until the audit completes.
+
+## Add-on note (2026-10-31)
+
+The Oct 22 refreeze code was the old split model (recipient got msg.value minus 1%). On Divine's approval on Oct 31, 2026, both contracts were rewritten to the add-on model: the recipient gets exactly the intended amount, and the charity gets 1% on top, paid by the sender. The split code is preserved in the local tags `legacy/split-oct17-deployed` and `legacy/split-oct22-refreeze`. The Sepolia deployment below still runs the Oct 17 split code; an add-on redeploy with verified source is still to come.
 
 ## Refreeze note (2026-10-22)
 
@@ -11,18 +15,18 @@ The Oct 17 freeze was lifted once, on Divine's approval, to apply the three chea
 - **C. Self send guard + ETH recovery:** both send functions revert when the destination is the contract itself; `recoverETH` added to SnagRouterMulti.
 - Fixes E and F from the scan were deliberately NOT applied (they change send path semantics; auditor steer first). D, G, H documented only.
 
-Test suite is now 23 tests, all passing. The Sepolia deployment below predates this refreeze and still runs the Oct 17 code.
+Test suite is now 30 tests, all passing. The Sepolia deployment below predates the add-on change and still runs the Oct 17 split code.
 
 ## Scope (in scope)
 
 | Contract | Lines | Purpose |
 |---|---|---|
-| `contracts/SnagRouterMulti.sol` | 126 | Multi-cause router: `snagAndSend(charityId, destination)` splits msg.value 1% → charity, 99% → destination |
-| `contracts/SnagRouter.sol` | 133 | Single-cause router + ERC20 variant + `recoverERC20` |
-| **Total** | **259** | |
+| `contracts/SnagRouterMulti.sol` | 147 | Multi-cause router: `snagAndSend(charityId, destination, amount)` — recipient gets exactly `amount`, charity gets 1% on top, paid by the sender |
+| `contracts/SnagRouter.sol` | 150 | Single-cause router + ERC20 variant + `recoverERC20` — same add-on rule |
+| **Total** | **297** | |
 
 - Solidity `^0.8.20`, compiled with 0.8.37, optimizer enabled (200 runs).
-- Test suite: `test/snag.test.js` — 23 tests, all passing (`npx hardhat test`).
+- Test suite: `test/snag.test.js` — 30 tests, all passing (`npx hardhat test`).
 - Reference deployment (Sepolia): `0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520`
   ([Etherscan](https://sepolia.etherscan.io/address/0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520)) — all 8 cause wallets registered, end-to-end test snag confirmed (block 11937972).
 
@@ -34,8 +38,8 @@ Test suite is now 23 tests, all passing. The Sepolia deployment below predates t
 
 ## Intended invariants (for the auditor to verify)
 
-1. **Conservation:** `snagAmount + sendAmount == msg.value` on every `snagAndSend` (no ETH retained; router balance is always 0 after a call).
-2. **Fee math:** `snagAmount = msg.value * feeBps / 10000`, rounded down; `feeBps <= 1000` (10%) enforced in constructor and `setFeeBps`.
+1. **Conservation:** `amount + snagAmount == msg.value` on every `snagAndSend` (the sender pays exactly the intended amount plus the 1% add-on; no ETH retained; router balance is always 0 after a call). A short or over payment reverts.
+2. **Fee math:** `snagAmount = amount * feeBps / 10000`, rounded down, where `amount` is the exact amount the destination receives; `feeBps <= 1000` (10%) enforced in constructor and `setFeeBps`.
 3. **Access control:** only `owner` can call `addCharity`, the propose/confirm wallet change functions, `setFeeBps`, `recoverERC20`, `recoverETH`, `transferOwnership`, `renounceOwnership`.
 4. **No zero-address sinks:** charity wallet and destination must be non-zero (checked on write and per-send); sends to the contract itself revert (`Snag: self destination`).
 5. **Charity registry integrity:** `snagAndSend` reverts on unregistered charity id (`Snag: unknown charity`); `addCharity` reverts if the id already has a wallet (`Snag: charity exists`) — no silent overwrites. Wallet changes take effect only after a 1 day delay via propose then confirm.
@@ -43,7 +47,7 @@ Test suite is now 23 tests, all passing. The Sepolia deployment below predates t
 
 ## Known considerations (disclosed, not hidden)
 
-- **Dust rounding:** for tiny sends (< 100 wei at 1%), the snag rounds to 0 and the destination receives everything. Accepted as correct behavior (documented in tests).
+- **Dust rounding:** for tiny intended amounts (< 100 wei at 1%), the snag rounds to 0 and the destination receives the full intended amount. Accepted as correct behavior (documented in tests).
 - **Charity wallet trust:** charity wallets are EOAs controlled by the project steward pre-partnership. The contract cannot verify off-chain disbursement — that's what the transparency dashboard (planned) addresses.
 - **`recoverERC20`:** owner-only escape hatch for tokens accidentally sent to the router. Cannot touch ETH.
 - **Fee changes:** `setFeeBps` is owner-only and capped at 10%; fee changes apply to subsequent sends only.

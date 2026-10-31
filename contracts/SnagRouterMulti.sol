@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title SnagRouterMulti - opt-in charity fee router with multiple causes
+/// @title SnagRouterMulti - opt-in charity add-on router with multiple causes
 /// @notice Users pick a charity (by id hash or address) when sending.
-/// Fee is 1% (100 bps) by default, sent to the chosen charity wallet.
+/// The add-on is 1% (100 bps) by default, paid by the sender ON TOP of
+/// the recipient's full intended amount: the recipient gets exactly the
+/// amount stated, the cause wallet gets 1% of that amount on top.
+/// @dev Add-on model, approved Oct 31 2026. The old split model
+/// (recipient got msg.value minus 1%) is preserved in the local tag
+/// legacy/split-oct22-refreeze and must not be reintroduced here.
 contract SnagRouterMulti {
     address public owner;
     uint256 public feeBps;
@@ -21,6 +26,11 @@ contract SnagRouterMulti {
     mapping(bytes32 => address payable) public pendingCharityWallets;
     mapping(bytes32 => uint256) public charityUpdateEtas;
 
+    // @dev In the Snagged event, `amount` is the intended recipient
+    // amount (what the destination actually receives). It is NOT the
+    // total the sender paid; the sender paid amount + snagAmount.
+    // This meaning changed with the add-on rewrite (Oct 31 2026);
+    // the old split version emitted msg.value as `amount`.
     event Snagged(address indexed from, address indexed destination, uint256 amount, uint256 snagAmount, bytes32 indexed charityId, address charityWallet);
     event CharityAdded(bytes32 indexed charityId, address wallet);
     event CharityWalletUpdated(bytes32 indexed charityId, address oldWallet, address newWallet);
@@ -99,23 +109,34 @@ contract SnagRouterMulti {
         emit FeeUpdated(old, _feeBps);
     }
 
-    function snagAndSend(string calldata charityIdStr, address payable destination) external payable {
+    /// @notice Send ETH with a 1% charity add-on on top, paid by the sender.
+    /// @param charityIdStr Cause id, e.g. "diapers-baby".
+    /// @param destination Who receives the full intended amount.
+    /// @param amount The exact amount the destination must receive.
+    /// @dev The sender must pay exactly amount + snagAmount, where
+    /// snagAmount = amount * feeBps / 10000 (dust rounds down).
+    /// A short or over payment reverts, so the recipient never gets
+    /// a shortfall and no leftover ETH stays in the contract.
+    /// The old split math (take 1% of msg.value, send the rest) is
+    /// deliberately NOT used here; do not divide by 1.01 to recover
+    /// the amount, that only approximates it.
+    function snagAndSend(string calldata charityIdStr, address payable destination, uint256 amount) external payable {
         bytes32 cid = keccak256(bytes(charityIdStr));
         address payable charity = charityWallets[cid];
         require(charity != address(0), "Snag: unknown charity");
-        require(msg.value > 0, "Snag: no value");
+        require(amount > 0, "Snag: no amount");
         require(destination != address(0), "Snag: zero destination");
         require(destination != address(this), "Snag: self destination");
 
-        uint256 snagAmount = (msg.value * feeBps) / BPS_DENOMINATOR;
-        uint256 sendAmount = msg.value - snagAmount;
+        uint256 snagAmount = (amount * feeBps) / BPS_DENOMINATOR;
+        require(msg.value == amount + snagAmount, "Snag: wrong value");
 
         (bool s1, ) = charity.call{value: snagAmount}("");
         require(s1, "Snag: charity failed");
-        (bool s2, ) = destination.call{value: sendAmount}("");
+        (bool s2, ) = destination.call{value: amount}("");
         require(s2, "Snag: destination failed");
 
-        emit Snagged(msg.sender, destination, msg.value, snagAmount, cid, charity);
+        emit Snagged(msg.sender, destination, amount, snagAmount, cid, charity);
     }
 
     /// @notice Recover ETH stuck in this contract (e.g. force sent). Owner only.
