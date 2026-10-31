@@ -1,6 +1,6 @@
 # Snag
 
-Opt-in charity fee on crypto sends. Every time a user sends through Snag, **1%** is snagged and routed to a specific charity wallet they choose.
+Opt-in charity fee on crypto sends. Every time a user sends through Snag, the recipient gets exactly the amount they intended, and the sender adds **1%** on top to a charity wallet they choose.
 
 Fully opt-in: users choose to send via Snag and pick the cause. Nothing is taken from wallets that don't use it.
 
@@ -19,7 +19,7 @@ All wallets were generated for you and are in `charities.json`. Private keys are
 | Clean Water Projects | Wells and filtration | `0x7D0D044F3cc5ccc90eF59dfbd0D75c6D37dB1487` | `bc1qrllrwq0d57ljsgytv8s2vr7ffxe6spzt7nq8np` |
 | Emergency Disaster Relief | Fires, floods, storms | `0x18ABdFFb2719bA666C7CFA6E5D9E38a6Fb736e87` | `bc1qwfecfudcuqkvw63avmzcva0pgl9nm9e9a0vkd0` |
 
-Want more? Just run `node generate-wallets.js` again after adding to the `causes` list — or tell Sincere and I'll add them.
+Want more? Just run `node generate-wallets.js` again after adding to the `causes` list, or open an issue on the repo to add them.
 
 ## How it works
 
@@ -40,6 +40,8 @@ await snagSendEthToCharity({
   amountWei: ethers.parseEther("0.1"),
 });
 ```
+
+The destination receives exactly `amountWei`; the sender pays `amountWei` plus 1% on top.
 
 ### Bitcoin
 `btc/snag-btc.js` builds a PSBT with two outputs: destination + chosen charity.
@@ -68,7 +70,7 @@ const { psbtBase64 } = buildSnagPsbt({
 - ETH fee capped at 10% in-contract to prevent misconfiguration.
 - BTC dust check: snag < 546 sats rejected.
 
-## Tracking (Sincere)
+## Tracking
 - ETH: listen for `Snagged` events on the multi-router — filter by charityId.
 - BTC: scan for outputs to each charity address in `charities.json`.
 

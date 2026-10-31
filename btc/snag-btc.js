@@ -1,4 +1,6 @@
 // Snag BTC — build a Bitcoin tx with an extra charity output.
+// Add-on model, Oct 31 2026: amountSats is the exact amount the
+// destination receives; the snag is paid on top, not taken from it.
 // Uses bitcoinjs-lib. The user signs; we never touch private keys.
 
 const bitcoin = require("bitcoinjs-lib");
@@ -9,14 +11,14 @@ function getNetwork(name) {
 }
 
 /**
- * Calculate the snag split.
- * @param {number} amountSats - total sats the user wants to move (before miner fee)
+ * Calculate the snag add-on.
+ * @param {number} amountSats - exact sats the destination receives (snag is on top)
  * @param {number} feeBps - e.g. 100 = 1%
  * @returns {{ snagSats: number, destSats: number }}
  */
 function calcSnag(amountSats, feeBps) {
   const snagSats = Math.floor((amountSats * feeBps) / 10000);
-  return { snagSats, destSats: amountSats - snagSats };
+  return { snagSats, destSats: amountSats };
 }
 
 /**
@@ -25,7 +27,7 @@ function calcSnag(amountSats, feeBps) {
  * @param {object} opts
  * @param {Array} opts.utxos - [{ txid, vout, value (sats), scriptPubKey hex }]
  * @param {string} opts.destinationAddress - main recipient
- * @param {number} opts.amountSats - amount to move (snag is taken from this)
+ * @param {number} opts.amountSats - exact amount the destination receives (snag is on top)
  * @param {string} opts.charityAddress - charity recipient (defaults to config)
  * @param {number} opts.feeBps - defaults to config.feeBps
  * @param {number} opts.minerFeeSats - miner fee to pay
