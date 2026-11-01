@@ -1,10 +1,15 @@
 # Snag — Frictionless Giving for Crypto
 
-**Version 1.1 · October 16, 2026**
+**Version 1.2 · November 1, 2026**
 
-**Created by Divine.** The Snag concept, the 1% opt-in charity fee, the charity
+**Created by Divine.** The Snag concept, the 1% opt-in charity add-on, the charity
 cause list, and the project direction are Divine's original idea. Built with
 help from Sincere (AI assistant).
+
+**What changed in v1.2.** The model changed. In v1.1 the 1% came out of the
+send, so the recipient got 99%. Now the recipient gets the full intended
+amount and the sender adds 1% on top for the cause they pick. Nothing else
+about the idea changed. The v1.1 whitepaper is archived.
 
 ## The Honest Headline
 
@@ -24,21 +29,33 @@ happens because the moment never arrives.
 ## The Solution
 
 Snag puts the gift *inside* the payment. When you send ETH or BTC through
-Snag, you opt in once and 1% of the send is automatically routed to a
-charity wallet you choose. Every crypto payment you already make quietly
+Snag, you opt in once and add 1% on top of the amount, and that 1% goes to
+a charity wallet you choose. The person you are sending to receives the
+full amount you intended. Every crypto payment you already make quietly
 funds a cause you chose. Nothing is ever taken from a wallet that doesn't
 opt in.
 
 ## How It Works
 
 **Ethereum.** Users send through the `SnagRouterMulti` smart contract instead
-of a direct transfer, calling `snagAndSend(charityId, destination)`. The
-contract takes 1%, forwards it to the chosen charity wallet, sends the rest
-to the destination, and emits a `Snagged` event. ERC20 tokens supported.
+of a direct transfer, calling `snagAndSend(charityId, destination, amount)`
+and sending amount plus 1%. The contract sends exactly `amount` to the
+destination, sends the 1% on top to the chosen charity wallet, and emits a
+`Snagged` event. ERC20 tokens follow the same rule: the recipient gets the
+exact amount and the cause gets 1% on top.
+
+Live on Sepolia: `SnagRouterMulti` at
+`0x763705eB5e9125Dcbf769831368d5708292dA0d8`, source verified on Etherscan as
+an exact match. The old split contract at
+`0x02Fad5B35aA4c73385cA166Edb3Da9ae9EC0b520` is superseded. A test send is
+confirmed in block 12037229: 0.001 ETH to the recipient in full, 0.00001
+ETH on top to the cause.
 
 **Bitcoin.** Bitcoin has no smart contracts, so Snag works at transaction
-construction: a PSBT builder adds a second output paying 1% to the chosen
-charity address. You sign in your own wallet — Snag never sees private keys.
+construction: a PSBT builder adds a second output paying 1% on top to the
+chosen charity address, so the recipient still gets the full intended
+amount. You sign in your own wallet — Snag never sees private keys. The
+Bitcoin flow is built; no BTC transaction has been sent on chain yet.
 
 ## How Snag Differs
 
@@ -56,7 +73,7 @@ Three things, stated plainly:
 
 Prior art exists for each ingredient — round-up apps, fee-on-transfer
 tokens, donation widgets. Nobody has combined them into this: an opt-in,
-per-send fee split executed at the moment of an on-chain transaction, where
+per-send add-on executed at the moment of an on-chain transaction, where
 the sender picks a specific cause wallet each time, non-custodial, with no
 new token. That combination is Snag's innovation, and we'll say so without
 pretending the ingredients are new.
@@ -64,11 +81,11 @@ pretending the ingredients are new.
 ## Why Opt-In Matters for Trust
 
 Charity tech lives or dies on trust. Snag never pulls funds, never takes
-custody, and never surprises anyone. The fee is fixed at 1%, visible before
-you sign, capped at 10% in the contract to prevent misconfiguration, and
-every snag is verifiable on-chain. Opt-in is what makes Snag honest.
+custody, and never surprises anyone. The add-on is fixed at 1%, visible
+before you sign, capped at 10% in the contract to prevent misconfiguration,
+and every snag is verifiable on-chain. Opt-in is what makes Snag honest.
 
-## Launch Causes (v1.1)
+## Launch Causes (v1.2)
 
 | Cause | Mission | ETH | BTC |
 |---|---|---|---|
@@ -93,12 +110,36 @@ every snag is verifiable on-chain. Opt-in is what makes Snag honest.
   happens in the user's own wallet.
 - **Separated wallets:** each cause has its own ETH and BTC addresses, so
   funds for diapers can't silently become funds for something else.
-- **Recoverable:** contract ownership can rotate charity wallets if one is
-  compromised.
+- **Recoverable:** a charity wallet can only change through a two step
+  update with a one day delay, so no single transaction can silently
+  redirect funds.
+- **Custody:** the 1% stays in the cause wallet it was sent to. Nothing has
+  moved anywhere yet. Divine holds the keys offline and decides where it
+  goes until a named charity partner takes custody through a two step
+  update. He will not move it to a different cause, and he will publish a
+  report of what came in per cause, what went out, to whom, and when.
+- **Audit:** a third party security audit proposal is in hand, with a public
+  final report and a fix review included. No signed engagement, no payment,
+  and no start date yet. The start waits on grant funding, and a fresh scope
+  and quote reconfirm is needed for the new scope.
+
+## Current Status (November 1, 2026)
+
+- One deployed contract only: `SnagRouterMulti` on Sepolia at
+  `0x763705eB5e9125Dcbf769831368d5708292dA0d8`, source verified on Etherscan
+  as an exact match. `SnagRouter` is in the repo only and is not deployed.
+- Code on GitHub main: 297 lines, 30 Hardhat tests passing.
+- Demo live: "Send with Snag" at
+  https://muse.ai/s/send-with-snag-nxk6txg1sxmsxzf/qXYQO3pPhxcfM9e-NkO0rRKIyB2eTISq3nvS8qd1iMA,
+  with the custody note at the point of send.
+- Snag is listed publicly on Giveth.
+- Audit proposal in hand, no signed engagement yet; the start waits on grant
+  funding.
+- No mainnet deployment yet. No funds have moved anywhere.
 
 ## Roadmap
 
-- "Send with Snag" picker UI for wallets and dApps
+- "Send with Snag" demo is live; wallet and dApp integrations next
 - Multi-cause splits (one snag across several causes)
 - Monthly public totals dashboard per cause
 
